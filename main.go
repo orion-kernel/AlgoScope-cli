@@ -267,7 +267,8 @@ func (m model) dashboardView() string {
 	body := lipgloss.JoinHorizontal(lipgloss.Top, sidebar, content)
 	footer := lipgloss.NewStyle().Foreground(slate).MarginTop(2).Render("▲▼ Navigate • Enter Select • Q Quit")
 
-	return frameStyle.Width(m.width).Height(m.height).Render(lipgloss.JoinVertical(lipgloss.Center, logo, body, footer))
+	// return frameStyle.Width(m.width).Height(m.height).Render(lipgloss.JoinVertical(lipgloss.Center, logo, body, footer))
+	return frameStyle.Render(lipgloss.JoinVertical(lipgloss.Center, logo, body, footer))
 }
 
 func (m model) sortView() string {
