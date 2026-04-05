@@ -40,14 +40,12 @@ var (
 			Align(lipgloss.Center, lipgloss.Center)
 
 	sidebarStyle = lipgloss.NewStyle().
-			Width(30).
 			PaddingRight(2).
 			Border(lipgloss.NormalBorder(), false, true, false, false).
 			BorderForeground(slate)
 
 	mainContentStyle = lipgloss.NewStyle().
-				PaddingLeft(4).
-				Width(60)
+				PaddingLeft(4)
 
 	tagStyle = lipgloss.NewStyle().
 			Bold(true).
@@ -204,18 +202,24 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) View() string {
-	if m.width < 20 || m.height < 10 {
-		return "Terminal too small..."
+	if m.width < 90 || m.height < 24 {
+		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, 
+			lipgloss.NewStyle().Foreground(red).Bold(true).Render("Terminal too small for AlgoScope CLI\nMinimum required: 90x24"))
 	}
 
-	var view string
+	var content string
 	if m.state == 0 {
-		view = m.dashboardView()
+		content = m.dashboardView()
 	} else {
-		view = m.sortView()
+		content = m.sortView()
 	}
 
-	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, view)
+	// Calculate optimal frame size with margins
+	fWidth := m.width - 4
+	fHeight := m.height - 2
+
+	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center,
+		frameStyle.Width(fWidth).Height(fHeight).Render(content))
 }
 
 func (m model) dashboardView() string {
@@ -232,6 +236,9 @@ func (m model) dashboardView() string {
 			"                ▀▀▀                             ▀                            \n" +
 			"                - ADVANCED ALGORITHM VISUALIZATION ENGINE -   ")
 
+	// Available space inside frame (accounting for padding)
+	availW := m.width - 8 // 4 (margins) + 4 (frame padding)
+	
 	// Sidebar
 	var menuItems []string
 	for i, item := range m.menu {
@@ -243,7 +250,12 @@ func (m model) dashboardView() string {
 		}
 		menuItems = append(menuItems, txt)
 	}
-	sidebar := sidebarStyle.Render(lipgloss.JoinVertical(lipgloss.Left, menuItems...))
+
+	// Sidebar width: fixed for consistency, or slightly dynamic
+	sbWidth := 30
+	if availW < 80 { sbWidth = 25 }
+	
+	sidebar := sidebarStyle.Width(sbWidth).Render(lipgloss.JoinVertical(lipgloss.Left, menuItems...))
 
 	// Main Panel
 	sel := m.menu[m.cursor]
@@ -254,11 +266,14 @@ func (m model) dashboardView() string {
 		compBadge, stabBadge = "", ""
 	}
 
-	content := mainContentStyle.Render(lipgloss.JoinVertical(lipgloss.Left,
+	// Content width: remaining available space
+	mcWidth := availW - sbWidth - 4 // extra gap
+	
+	content := mainContentStyle.Width(mcWidth).Render(lipgloss.JoinVertical(lipgloss.Left,
 		titleStyle.Render(sel.name),
 		lipgloss.JoinHorizontal(lipgloss.Top, compBadge, stabBadge),
 		"",
-		lipgloss.NewStyle().Foreground(white).Width(40).Render(sel.desc),
+		lipgloss.NewStyle().Foreground(white).Width(mcWidth).Render(sel.desc),
 		"",
 		systemStatusStyle.Render("System: Ready"),
 		systemStatusStyle.Render("Core: Online"),
@@ -267,14 +282,13 @@ func (m model) dashboardView() string {
 	body := lipgloss.JoinHorizontal(lipgloss.Top, sidebar, content)
 	footer := lipgloss.NewStyle().Foreground(slate).MarginTop(2).Render("▲▼ Navigate • Enter Select • Q Quit")
 
-	// return frameStyle.Width(m.width).Height(m.height).Render(lipgloss.JoinVertical(lipgloss.Center, logo, body, footer))
-	return frameStyle.Render(lipgloss.JoinVertical(lipgloss.Center, logo, body, footer))
+	return lipgloss.JoinVertical(lipgloss.Center, logo, body, footer)
 }
 
 func (m model) sortView() string {
 	header := lipgloss.NewStyle().Foreground(teal).Bold(true).Padding(0, 1).BorderStyle(lipgloss.RoundedBorder()).BorderForeground(blue).Render(" 󰓡 VISUALIZING: BUBBLE SORT ")
 
-	vH := m.height - 20
+	vH := m.height - 18 // Adjusted for frame
 	if vH < 5 {
 		vH = 5
 	}
@@ -300,11 +314,17 @@ func (m model) sortView() string {
 		bars.WriteString(row.String() + "\n")
 	}
 
+	visWidth := len(m.array) + 4
+	maxVisW := m.width - 12
+	if visWidth > maxVisW {
+		visWidth = maxVisW
+	}
+
 	vis := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(blue).
 		Padding(1, 2).
-		Width(len(m.array) + 4).
+		Width(visWidth).
 		Render(bars.String())
 
 	stats := lipgloss.JoinHorizontal(lipgloss.Center,
