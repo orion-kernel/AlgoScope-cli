@@ -69,19 +69,30 @@ var (
 	completeStyle = lipgloss.NewStyle().Foreground(green)
 )
 
+// --- State Constants ---
+const (
+	stateDashboard = iota
+	stateAlgorithmMenu
+	stateVisualizer
+	stateDocs
+)
+
 type algorithm struct {
 	name       string
 	desc       string
 	complexity string
 	stability  string
+	docPath    string
 }
 
 type model struct {
-	state  int // 0: Dashboard, 1: Bubble Sort
-	width  int
-	height int
-	cursor int
-	menu   []algorithm
+	state      int
+	width      int
+	height     int
+	cursor     int
+	subCursor  int
+	menu       []algorithm
+	docsText   string
 
 	// Sort State
 	array   []int
@@ -94,14 +105,15 @@ type model struct {
 
 func initialModel() model {
 	return model{
-		state: 0,
+		state: stateDashboard,
 		menu: []algorithm{
-			{"BUBBLE SORT", "Classic O(n²) sorting algorithm. Ideal for visualizing the basic concept of swapping and iterations.", "O(n²)", "STABLE"},
-			{"QUICK SORT", "Highly efficient O(n log n) divide-and-conquer algorithm. Selects a pivot to partition data.", "O(n log n)", "UNSTABLE"},
-			{"MERGE SORT", "Reliable O(n log n) stable sort. Recursively divides array into halves and merges them back.", "O(n log n)", "STABLE"},
-			{"EXIT ENGINE", "Terminate the AlgoScope visualization engine and return to host shell.", "N/A", "N/A"},
+			{"BUBBLE SORT", "Classic O(n²) sorting algorithm. Ideal for visualizing the basic concept of swapping and iterations.", "O(n²)", "STABLE", "docs/bubble_sort/README.md"},
+			{"QUICK SORT", "Highly efficient O(n log n) divide-and-conquer algorithm. Selects a pivot to partition data.", "O(n log n)", "UNSTABLE", "docs/quick_sort/README.md"},
+			{"MERGE SORT", "Reliable O(n log n) stable sort. Recursively divides array into halves and merges them back.", "O(n log n)", "STABLE", "docs/merge_sort/README.md"},
+			{"EXIT ENGINE", "Terminate the AlgoScope visualization engine and return to host shell.", "N/A", "N/A", ""},
 		},
 		cursor: 0,
+		subCursor: 0,
 	}
 }
 
@@ -142,37 +154,66 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "q", "ctrl+c":
-			if m.state == 0 {
+			if m.state == stateDashboard {
 				return m, tea.Quit
 			}
-			m.state = 0
+			m.state = stateDashboard
 		case "up", "k":
-			if m.state == 0 && m.cursor > 0 {
-				m.cursor--
+			if m.state == stateDashboard {
+				if m.cursor > 0 { m.cursor-- }
+			} else if m.state == stateAlgorithmMenu {
+				if m.subCursor > 0 { m.subCursor-- }
 			}
 		case "down", "j":
-			if m.state == 0 && m.cursor < len(m.menu)-1 {
-				m.cursor++
+			if m.state == stateDashboard {
+				if m.cursor < len(m.menu)-1 { m.cursor++ }
+			} else if m.state == stateAlgorithmMenu {
+				if m.subCursor < 1 { m.subCursor++ }
 			}
 		case "enter", " ":
-			if m.state == 0 {
+			if m.state == stateDashboard {
 				if m.cursor == 3 {
 					return m, tea.Quit
 				}
-				m.state = 1
-				m.initSort()
-				return m, tick()
+				m.state = stateAlgorithmMenu
+				m.subCursor = 0
+			} else if m.state == stateAlgorithmMenu {
+				if m.subCursor == 0 {
+					m.state = stateVisualizer
+					m.initSort()
+					return m, tick()
+				} else {
+					// Load docs
+					path := m.menu[m.cursor].docPath
+					if path != "" {
+						content, err := os.ReadFile(path)
+						if err == nil {
+							m.docsText = string(content)
+							m.state = stateDocs
+						} else {
+							m.docsText = "Documentation not found for this algorithm."
+							m.state = stateDocs
+						}
+					} else {
+						m.docsText = "No documentation available for " + m.menu[m.cursor].name
+						m.state = stateDocs
+					}
+				}
 			}
-		case "esc":
-			m.state = 0
+		case "esc", "b":
+			if m.state == stateAlgorithmMenu {
+				m.state = stateDashboard
+			} else if m.state == stateVisualizer || m.state == stateDocs {
+				m.state = stateAlgorithmMenu
+			}
 		case "r":
-			if m.state == 1 {
+			if m.state == stateVisualizer {
 				m.initSort()
 				return m, tick()
 			}
 		}
 	case tickMsg:
-		if m.state != 1 || m.done {
+		if m.state != stateVisualizer || m.done {
 			return m, nil
 		}
 		m.elapsed = time.Since(m.start)
@@ -208,10 +249,15 @@ func (m model) View() string {
 	}
 
 	var content string
-	if m.state == 0 {
+	switch m.state {
+	case stateDashboard:
 		content = m.dashboardView()
-	} else {
+	case stateAlgorithmMenu:
+		content = m.algorithmMenuView()
+	case stateVisualizer:
 		content = m.sortView()
+	case stateDocs:
+		content = m.docsView()
 	}
 
 	// Calculate optimal frame size with margins
@@ -283,6 +329,94 @@ func (m model) dashboardView() string {
 	footer := lipgloss.NewStyle().Foreground(slate).MarginTop(2).Render("▲▼ Navigate • Enter Select • Q Quit")
 
 	return lipgloss.JoinVertical(lipgloss.Center, logo, body, footer)
+}
+
+func (m model) algorithmMenuView() string {
+	sel := m.menu[m.cursor]
+	
+	title := lipgloss.NewStyle().
+		Foreground(lavender).
+		Bold(true).
+		MarginBottom(2).
+		Render("ALGORITHM: " + sel.name)
+
+	options := []string{"󰓡 START VISUALIZER", "󰈙 READ DOCUMENTATION"}
+	var renderedOpts []string
+	for i, opt := range options {
+		style := lipgloss.NewStyle().Padding(1, 2).Width(30).Align(lipgloss.Center).Margin(1)
+		if i == m.subCursor {
+			style = style.Foreground(bg).Background(teal).Bold(true)
+		} else {
+			style = style.Foreground(teal).Border(lipgloss.NormalBorder()).BorderForeground(teal)
+		}
+		renderedOpts = append(renderedOpts, style.Render(opt))
+	}
+
+	menu := lipgloss.JoinHorizontal(lipgloss.Top, renderedOpts...)
+	
+	help := lipgloss.NewStyle().Foreground(slate).MarginTop(4).Render("▲▼ Navigate • Enter Select • B/ESC Back")
+
+	return lipgloss.Place(m.width-8, m.height-6, lipgloss.Center, lipgloss.Center,
+		lipgloss.JoinVertical(lipgloss.Center, title, menu, help))
+}
+
+func (m model) docsView() string {
+	sel := m.menu[m.cursor]
+	header := lipgloss.NewStyle().
+		Foreground(teal).
+		Bold(true).
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(blue).
+		Padding(0, 2).
+		Render("󰈙 DOCUMENTATION: " + sel.name)
+
+	lines := strings.Split(m.docsText, "\n")
+	var docBody strings.Builder
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "# ") {
+			docBody.WriteString(lipgloss.NewStyle().Foreground(lavender).Bold(true).Underline(true).MarginTop(1).Render(strings.TrimPrefix(trimmed, "# ")) + "\n")
+		} else if strings.HasPrefix(trimmed, "## ") {
+			docBody.WriteString(lipgloss.NewStyle().Foreground(blue).Bold(true).MarginTop(1).Render(strings.TrimPrefix(trimmed, "## ")) + "\n")
+		} else if strings.HasPrefix(trimmed, "> ") {
+			docBody.WriteString(lipgloss.NewStyle().Foreground(slate).Italic(true).PaddingLeft(2).Render(strings.TrimPrefix(trimmed, "> ")) + "\n")
+		} else if strings.HasPrefix(trimmed, "- ") {
+			parts := strings.SplitN(strings.TrimPrefix(trimmed, "- "), ":", 2)
+			if len(parts) == 2 {
+				key := lipgloss.NewStyle().Foreground(orange).Render(parts[0] + ":")
+				val := lipgloss.NewStyle().Foreground(white).Render(parts[1])
+				docBody.WriteString("  • " + key + val + "\n")
+			} else {
+				docBody.WriteString("  • " + lipgloss.NewStyle().Foreground(white).Render(parts[0]) + "\n")
+			}
+		} else if strings.Contains(line, "**") {
+			// Basic bolding
+			parts := strings.Split(line, "**")
+			var rendered strings.Builder
+			for i, p := range parts {
+				if i%2 == 1 {
+					rendered.WriteString(lipgloss.NewStyle().Foreground(teal).Bold(true).Render(p))
+				} else {
+					rendered.WriteString(lipgloss.NewStyle().Foreground(white).Render(p))
+				}
+			}
+			docBody.WriteString(rendered.String() + "\n")
+		} else if strings.HasPrefix(trimmed, "---") {
+			docBody.WriteString(lipgloss.NewStyle().Foreground(slate).Render(strings.Repeat("─", 60)) + "\n")
+		} else {
+			docBody.WriteString(lipgloss.NewStyle().Foreground(white).Render(line) + "\n")
+		}
+	}
+
+	scrollArea := lipgloss.NewStyle().
+		Padding(1, 4).
+		Width(m.width - 12).
+		Height(m.height - 12).
+		Render(docBody.String())
+
+	footer := lipgloss.NewStyle().Foreground(slate).MarginTop(1).Render("B/ESC Back • Q Quit")
+
+	return lipgloss.JoinVertical(lipgloss.Center, header, scrollArea, footer)
 }
 
 func (m model) sortView() string {
