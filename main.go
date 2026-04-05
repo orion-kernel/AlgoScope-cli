@@ -13,17 +13,17 @@ import (
 
 // --- Colors (Tokyo Night Theme) ---
 var (
-	teal      = lipgloss.Color("#73daca")
-	lavender  = lipgloss.Color("#bb9af7")
-	magenta   = lipgloss.Color("#bb9af7")
-	blue      = lipgloss.Color("#7aa2f7")
-	darkGray  = lipgloss.Color("#24283b")
-	slate     = lipgloss.Color("#565f89")
-	orange    = lipgloss.Color("#ff9e64")
-	green     = lipgloss.Color("#9ece6a")
-	red       = lipgloss.Color("#f7768e")
-	bg        = lipgloss.Color("#1a1b26")
-	white     = lipgloss.Color("#c0caf5")
+	teal     = lipgloss.Color("#73daca")
+	lavender = lipgloss.Color("#bb9af7")
+	magenta  = lipgloss.Color("#bb9af7")
+	blue     = lipgloss.Color("#7aa2f7")
+	darkGray = lipgloss.Color("#24283b")
+	slate    = lipgloss.Color("#565f89")
+	orange   = lipgloss.Color("#ff9e64")
+	green    = lipgloss.Color("#9ece6a")
+	red      = lipgloss.Color("#f7768e")
+	bg       = lipgloss.Color("#1a1b26")
+	white    = lipgloss.Color("#c0caf5")
 )
 
 // --- Styles ---
@@ -220,21 +220,25 @@ func (m model) View() string {
 func (m model) dashboardView() string {
 	// Logo
 	logo := logoStyle.Render(
-		"▄▄▄▄· ▄▄▄·  ▐ ▄  ▄▄▄· .▄▄ ·  ▄▄·        ▄▄▄·▄▄▄ . \n" +
-			"▐█ ▀█▪▐█ ▀█ •█▌▐█▐█ ▀█ ▐█ ▀. ▐█ ▌▪      ▐█ ▄█▀▄.▀· \n" +
-			"▐█▀▀█▄▄█▀▀█ ▐█▐▐▌▄█▀▀█ ▄▀▀▀█▄██ ▄▄      ██▀·▐▀▀▪▄ \n" +
-			"██▄▪▐█▐█ ▪▐▌██▐█▌▐█ ▪▐▌▐█▄▪▐█▐███▌      ▐█ ▪·▐█▄▄▌ \n" +
-			"·▀▀▀▀  ▀  ▀ ▀▀ █▪ ▀  ▀  ▀▀▀▀ ·▀▀▀       ▀    ▀▀▀  \n" +
-			"   - ADVANCED ALGORITHM VISUALIZATION ENGINE -   ")
+		"                                                                             \n" +
+			"     ▄▄    ▄▄               ▄▄▄▄▄                             ▄   ▄▄▄▄ ▄▄    \n" +
+			"   ▄█▀▀█▄   ██             ██▀▀▀▀█▄                           ▀██████▀  ██   \n" +
+			"   ██  ██   ██    ▄▄       ▀██▄  ▄▀                             ██      ██ ▀▀\n" +
+			"   ██▀▀██   ██ ▄████ ▄███▄   ▀██▄▄  ▄███▀ ▄███▄ ████▄ ▄█▀█▄     ██      ██ ██\n" +
+			" ▄ ██  ██   ██ ██ ██ ██ ██ ▄   ▀██▄ ██    ██ ██ ██ ██ ██▄█▀     ██      ██ ██\n" +
+			" ▀██▀  ▀█▄█▄██▄▀████▄▀███▀ ▀██████▀▄▀███▄▄▀███▀▄████▀▄▀█▄▄▄     ▀█████ ▄██▄██\n" +
+			"                  ██                            ██                           \n" +
+			"                ▀▀▀                             ▀                            \n" +
+			"                - ADVANCED ALGORITHM VISUALIZATION ENGINE -   ")
 
 	// Sidebar
 	var menuItems []string
 	for i, item := range m.menu {
 		txt := item.name
 		if i == m.cursor {
-			txt = lipgloss.NewStyle().Foreground(teal).Bold(true).Background(darkGray).Padding(0, 1).Render(" "+txt)
+			txt = lipgloss.NewStyle().Foreground(teal).Bold(true).Background(darkGray).Padding(0, 1).Render(" " + txt)
 		} else {
-			txt = lipgloss.NewStyle().Foreground(slate).Padding(0, 1).Render("  "+txt)
+			txt = lipgloss.NewStyle().Foreground(slate).Padding(0, 1).Render("  " + txt)
 		}
 		menuItems = append(menuItems, txt)
 	}
