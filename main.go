@@ -11,82 +11,80 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// --- Configuration & Constants ---
-const (
-	delay = 10 * time.Millisecond
-)
-
-type viewState int
-
-const (
-	viewDashboard viewState = iota
-	viewBubbleSort
+// --- Colors (Tokyo Night Theme) ---
+var (
+	teal      = lipgloss.Color("#73daca")
+	lavender  = lipgloss.Color("#bb9af7")
+	magenta   = lipgloss.Color("#bb9af7")
+	blue      = lipgloss.Color("#7aa2f7")
+	darkGray  = lipgloss.Color("#24283b")
+	slate     = lipgloss.Color("#565f89")
+	orange    = lipgloss.Color("#ff9e64")
+	green     = lipgloss.Color("#9ece6a")
+	red       = lipgloss.Color("#f7768e")
+	bg        = lipgloss.Color("#1a1b26")
+	white     = lipgloss.Color("#c0caf5")
 )
 
 // --- Styles ---
 var (
-	// Colors
-	cyan    = lipgloss.Color("#00F5FF")
-	purple  = lipgloss.Color("#7D56F4")
-	pink    = lipgloss.Color("#FF06B7")
-	gray    = lipgloss.Color("#888888")
-	black   = lipgloss.Color("#000000")
-
-	// Dashboard Styles
-	titleStyle = lipgloss.NewStyle().
-			Foreground(cyan).
+	logoStyle = lipgloss.NewStyle().
+			Foreground(teal).
 			Bold(true).
+			MarginBottom(1)
+
+	frameStyle = lipgloss.NewStyle().
 			Border(lipgloss.DoubleBorder()).
-			Padding(1, 4).
-			MarginBottom(2)
+			BorderForeground(blue).
+			Padding(1, 2)
 
-	menuStyle = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			Padding(1, 2).
-			BorderForeground(purple)
+	sidebarStyle = lipgloss.NewStyle().
+			Width(30).
+			PaddingRight(2).
+			Border(lipgloss.NormalBorder(), false, true, false, false).
+			BorderForeground(slate)
 
-	buttonStyle = lipgloss.NewStyle().
-			Foreground(purple).
-			Padding(0, 2).
-			MarginTop(1)
+	mainContentStyle = lipgloss.NewStyle().
+				PaddingLeft(4).
+				Width(60)
 
-	activeButtonStyle = buttonStyle.
-				Foreground(black).
-				Background(cyan).
-				Bold(true)
+	tagStyle = lipgloss.NewStyle().
+			Bold(true).
+			Padding(0, 1).
+			MarginRight(1).
+			Foreground(white)
 
-	footerStyle = lipgloss.NewStyle().
-			Foreground(gray).
-			Italic(true).
-			MarginTop(2)
+	titleStyle = lipgloss.NewStyle().
+			Foreground(lavender).
+			Bold(true).
+			Underline(true).
+			MarginBottom(1)
 
-	// Sort Visualization Styles
-	barStyle      = lipgloss.NewStyle().Foreground(purple)
-	activeStyle   = lipgloss.NewStyle().Foreground(pink)
-	completeStyle = lipgloss.NewStyle().Foreground(cyan)
-	statsStyle    = lipgloss.NewStyle().Foreground(gray).Italic(true)
+	systemStatusStyle = lipgloss.NewStyle().
+				Foreground(slate).
+				Italic(true)
+
+	// Sort Visualization
+	barStyle      = lipgloss.NewStyle().Foreground(blue)
+	activeStyle   = lipgloss.NewStyle().Foreground(magenta).Bold(true)
+	completeStyle = lipgloss.NewStyle().Foreground(green)
 )
 
-// --- Messages & Commands ---
-type tickMsg time.Time
-
-func tick() tea.Cmd {
-	return tea.Tick(delay, func(t time.Time) tea.Msg {
-		return tickMsg(t)
-	})
+type algorithm struct {
+	name       string
+	desc       string
+	complexity string
+	stability  string
 }
 
-// --- Model ---
 type model struct {
-	state  viewState
+	state  int // 0: Dashboard, 1: Bubble Sort
 	width  int
 	height int
-
-	// Dashboard State
 	cursor int
-	menu   []string
+	menu   []algorithm
 
-	// Bubble Sort State
+	// Sort State
 	array   []int
 	i, j    int
 	swapped bool
@@ -97,105 +95,89 @@ type model struct {
 
 func initialModel() model {
 	return model{
-		state:  viewDashboard,
-		menu:   []string{"Bubble Sort", "Quit"},
+		state: 0,
+		menu: []algorithm{
+			{"BUBBLE SORT", "Classic O(n²) sorting algorithm. Ideal for visualizing the basic concept of swapping and iterations.", "O(n²)", "STABLE"},
+			{"QUICK SORT", "Highly efficient O(n log n) divide-and-conquer algorithm. Selects a pivot to partition data.", "O(n log n)", "UNSTABLE"},
+			{"MERGE SORT", "Reliable O(n log n) stable sort. Recursively divides array into halves and merges them back.", "O(n log n)", "STABLE"},
+			{"EXIT ENGINE", "Terminate the AlgoScope visualization engine and return to host shell.", "N/A", "N/A"},
+		},
 		cursor: 0,
 	}
 }
 
 func (m *model) initSort() {
 	rand.Seed(time.Now().UnixNano())
-	// Use 80% of screen width for the visualization
-	visWidth := int(float64(m.width) * 0.8)
-	if visWidth > 80 {
-		visWidth = 80
+	visWidth := int(float64(m.width) * 0.7)
+	if visWidth > 100 {
+		visWidth = 100
 	}
-	if visWidth < 10 {
-		visWidth = 10
-	}
-
-	// Max height for bars
-	maxBarHeight := (m.height - 10) * 8
-	if maxBarHeight < 8 {
-		maxBarHeight = 8
+	if visWidth < 20 {
+		visWidth = 20
 	}
 
-	arr := make([]int, visWidth)
-	for i := range arr {
-		arr[i] = rand.Intn(maxBarHeight-2) + 1
+	maxHeight := (m.height - 20) * 8
+	if maxHeight < 8 {
+		maxHeight = 8
 	}
-	m.array = arr
-	m.i = 0
-	m.j = 0
-	m.swapped = false
-	m.done = false
-	m.start = time.Now()
+
+	m.array = make([]int, visWidth)
+	for i := range m.array {
+		m.array[i] = rand.Intn(maxHeight-2) + 1
+	}
+	m.i, m.j, m.swapped, m.done, m.start = 0, 0, false, false, time.Now()
 }
 
-func (m model) Init() tea.Cmd {
-	return nil
+func (m model) Init() tea.Cmd { return nil }
+
+type tickMsg time.Time
+
+func tick() tea.Cmd {
+	return tea.Tick(10*time.Millisecond, func(t time.Time) tea.Msg { return tickMsg(t) })
 }
 
-// --- Update ---
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		m.height = msg.Height
-		return m, nil
-
+		m.width, m.height = msg.Width, msg.Height
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "q", "ctrl+c":
-			if m.state == viewDashboard {
+			if m.state == 0 {
 				return m, tea.Quit
 			}
-			m.state = viewDashboard
-			return m, nil
-
+			m.state = 0
 		case "up", "k":
-			if m.state == viewDashboard && m.cursor > 0 {
+			if m.state == 0 && m.cursor > 0 {
 				m.cursor--
 			}
 		case "down", "j":
-			if m.state == viewDashboard && m.cursor < len(m.menu)-1 {
+			if m.state == 0 && m.cursor < len(m.menu)-1 {
 				m.cursor++
 			}
 		case "enter", " ":
-			if m.state == viewDashboard {
-				switch m.cursor {
-				case 0: // Bubble Sort
-					m.state = viewBubbleSort
-					m.initSort()
-					return m, tick()
-				case 1: // Quit
+			if m.state == 0 {
+				if m.cursor == 3 {
 					return m, tea.Quit
 				}
-			}
-
-		case "r":
-			if m.state == viewBubbleSort {
+				m.state = 1
 				m.initSort()
 				return m, tick()
 			}
 		case "esc":
-			m.state = viewDashboard
-			return m, nil
+			m.state = 0
+		case "r":
+			if m.state == 1 {
+				m.initSort()
+				return m, tick()
+			}
 		}
-
 	case tickMsg:
-		if m.state != viewBubbleSort || m.done {
+		if m.state != 1 || m.done {
 			return m, nil
 		}
-
 		m.elapsed = time.Since(m.start)
-
-		// Multiple steps per tick for better performance
-		steps := 4
-		if len(m.array) > 60 {
-			steps = 8
-		}
-		for k := 0; k < steps; k++ {
+		for k := 0; k < 6; k++ {
 			if m.i < len(m.array)-1 {
 				if m.j < len(m.array)-m.i-1 {
 					if m.array[m.j] > m.array[m.j+1] {
@@ -208,127 +190,129 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.done = true
 						break
 					}
-					m.j = 0
-					m.i++
-					m.swapped = false
+					m.j, m.i, m.swapped = 0, m.i+1, false
 				}
 			} else {
 				m.done = true
 				break
 			}
 		}
-
 		return m, tick()
 	}
-
 	return m, nil
 }
 
-// --- View ---
 func (m model) View() string {
-	if m.width == 0 || m.height == 0 {
-		return "Initializing..."
+	if m.width < 20 || m.height < 10 {
+		return "Terminal too small..."
 	}
 
-	var content string
-	switch m.state {
-	case viewDashboard:
-		content = m.dashboardView()
-	case viewBubbleSort:
-		content = m.bubbleSortView()
+	var view string
+	if m.state == 0 {
+		view = m.dashboardView()
+	} else {
+		view = m.sortView()
 	}
 
-	// Center everything on screen
-	return lipgloss.Place(
-		m.width, m.height,
-		lipgloss.Center, lipgloss.Center,
-		content,
-	)
+	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, view)
 }
 
 func (m model) dashboardView() string {
-	var b strings.Builder
+	// Logo
+	logo := logoStyle.Render(
+		"▄▄▄▄· ▄▄▄·  ▐ ▄  ▄▄▄· .▄▄ ·  ▄▄·        ▄▄▄·▄▄▄ . \n" +
+			"▐█ ▀█▪▐█ ▀█ •█▌▐█▐█ ▀█ ▐█ ▀. ▐█ ▌▪      ▐█ ▄█▀▄.▀· \n" +
+			"▐█▀▀█▄▄█▀▀█ ▐█▐▐▌▄█▀▀█ ▄▀▀▀█▄██ ▄▄      ██▀·▐▀▀▪▄ \n" +
+			"██▄▪▐█▐█ ▪▐▌██▐█▌▐█ ▪▐▌▐█▄▪▐█▐███▌      ▐█ ▪·▐█▄▄▌ \n" +
+			"·▀▀▀▀  ▀  ▀ ▀▀ █▪ ▀  ▀  ▀▀▀▀ ·▀▀▀       ▀    ▀▀▀  \n" +
+			"   - ADVANCED ALGORITHM VISUALIZATION ENGINE -   ")
 
-	b.WriteString(titleStyle.Render("ALGOSCOPE DASHBOARD"))
-	b.WriteString("\n\n")
-
+	// Sidebar
 	var menuItems []string
 	for i, item := range m.menu {
-		if m.cursor == i {
-			menuItems = append(menuItems, activeButtonStyle.Render("> "+item+" <"))
+		txt := item.name
+		if i == m.cursor {
+			txt = lipgloss.NewStyle().Foreground(teal).Bold(true).Background(darkGray).Padding(0, 1).Render(" "+txt)
 		} else {
-			menuItems = append(menuItems, buttonStyle.Render("  "+item+"  "))
+			txt = lipgloss.NewStyle().Foreground(slate).Padding(0, 1).Render("  "+txt)
 		}
+		menuItems = append(menuItems, txt)
+	}
+	sidebar := sidebarStyle.Render(lipgloss.JoinVertical(lipgloss.Left, menuItems...))
+
+	// Main Panel
+	sel := m.menu[m.cursor]
+
+	compBadge := tagStyle.Background(orange).Render(sel.complexity)
+	stabBadge := tagStyle.Background(blue).Render(sel.stability)
+	if sel.name == "EXIT ENGINE" {
+		compBadge, stabBadge = "", ""
 	}
 
-	b.WriteString(menuStyle.Render(lipgloss.JoinVertical(lipgloss.Center, menuItems...)))
-	b.WriteString("\n")
-	b.WriteString(footerStyle.Render("Use arrow keys to navigate • Enter to select"))
+	content := mainContentStyle.Render(lipgloss.JoinVertical(lipgloss.Left,
+		titleStyle.Render(sel.name),
+		lipgloss.JoinHorizontal(lipgloss.Top, compBadge, stabBadge),
+		"",
+		lipgloss.NewStyle().Foreground(white).Width(40).Render(sel.desc),
+		"",
+		systemStatusStyle.Render("System: Ready"),
+		systemStatusStyle.Render("Core: Online"),
+	))
 
-	return b.String()
+	body := lipgloss.JoinHorizontal(lipgloss.Top, sidebar, content)
+	footer := lipgloss.NewStyle().Foreground(slate).MarginTop(2).Render("▲▼ Navigate • Enter Select • Q Quit")
+
+	return frameStyle.Render(lipgloss.JoinVertical(lipgloss.Center, logo, body, footer))
 }
 
-func (m model) bubbleSortView() string {
-	var b strings.Builder
+func (m model) sortView() string {
+	header := lipgloss.NewStyle().Foreground(teal).Bold(true).Padding(0, 1).BorderStyle(lipgloss.RoundedBorder()).BorderForeground(blue).Render(" 󰓡 VISUALIZING: BUBBLE SORT ")
 
-	b.WriteString(titleStyle.Render("BUBBLE SORT VISUALIZER"))
-	b.WriteString("\n")
-
-	// Render bars
-	visHeight := m.height - 15
-	if visHeight < 5 {
-		visHeight = 5
+	vH := m.height - 20
+	if vH < 5 {
+		vH = 5
 	}
 
 	var bars strings.Builder
-	for h := visHeight - 1; h >= 0; h-- {
+	for h := vH - 1; h >= 0; h-- {
 		var row strings.Builder
-		for index, val := range m.array {
-			char := " "
-			style := barStyle
-
-			cellHeight := val - (h * 8)
-			if cellHeight >= 8 {
+		for idx, val := range m.array {
+			char, style := " ", barStyle
+			ch := val - (h * 8)
+			if ch >= 8 {
 				char = "█"
-			} else if cellHeight > 0 {
-				char = getBarChar(cellHeight)
-			} else {
-				char = " "
+			} else if ch > 0 {
+				char = getBarChar(ch)
 			}
-
 			if m.done {
 				style = completeStyle
-			} else if index == m.j || index == m.j+1 {
+			} else if idx == m.j || idx == m.j+1 {
 				style = activeStyle
 			}
-
 			row.WriteString(style.Render(char))
 		}
-		bars.WriteString(row.String())
-		if h > 0 {
-			bars.WriteString("\n")
-		}
+		bars.WriteString(row.String() + "\n")
 	}
 
-	b.WriteString(lipgloss.NewStyle().
-		Border(lipgloss.NormalBorder()).
-		BorderForeground(purple).
+	vis := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(blue).
 		Padding(1, 2).
-		Width(len(m.array) + 4). // +4 to account for padding
-		Render(bars.String()))
+		Width(len(m.array) + 4).
+		Render(bars.String())
 
-	status := ""
+	stats := lipgloss.JoinHorizontal(lipgloss.Center,
+		tagStyle.Background(darkGray).Foreground(lavender).Render(fmt.Sprintf("󱫐 ITER: %d", m.i)),
+		tagStyle.Background(darkGray).Foreground(teal).Render(fmt.Sprintf("󱎫 TIME: %s", m.elapsed.Round(time.Second))),
+	)
+
 	if m.done {
-		status = completeStyle.Render(fmt.Sprintf("\nSorting Complete! Time: %v", m.elapsed.Round(time.Millisecond)))
-		status += "\nPress 'r' to restart, 'esc' for dashboard."
-	} else {
-		status = fmt.Sprintf("\nSorting... Iteration: %d/%d", m.i, len(m.array))
-		status += statsStyle.Render(fmt.Sprintf(" | Time: %v", m.elapsed.Round(time.Second)))
-		status += "\nPress 'esc' to return to dashboard."
+		stats = completeStyle.Bold(true).Render(fmt.Sprintf("󰄬 SORTING COMPLETE! TOTAL TIME: %v", m.elapsed.Round(time.Millisecond)))
 	}
-	b.WriteString(status)
 
-	return b.String()
+	help := lipgloss.NewStyle().Foreground(slate).MarginTop(1).Render("R Restart • ESC Back • Q Quit")
+
+	return lipgloss.JoinVertical(lipgloss.Center, header, vis, stats, help)
 }
 
 func getBarChar(h int) string {
@@ -345,7 +329,7 @@ func getBarChar(h int) string {
 func main() {
 	p := tea.NewProgram(initialModel(), tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
-		fmt.Printf("Error running program: %v", err)
+		fmt.Printf("Error: %v", err)
 		os.Exit(1)
 	}
 }
