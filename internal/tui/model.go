@@ -80,7 +80,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			} else if m.State == StateAlgorithmMenu {
 				if m.SubCursor == 0 {
 					m.State = StateVisualizer
-					m.Engine = engine.NewEngine(m.Width, m.Height)
+					m.Engine = engine.NewEngine(m.Width, m.Height, m.Menu[m.Cursor].ID)
 					return m, Tick()
 				} else {
 					// Load docs
@@ -108,7 +108,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "r":
 			if m.State == StateVisualizer {
-				m.Engine = engine.NewEngine(m.Width, m.Height)
+				m.Engine = engine.NewEngine(m.Width, m.Height, m.Menu[m.Cursor].ID)
 				return m, Tick()
 			}
 		}
