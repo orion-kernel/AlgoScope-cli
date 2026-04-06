@@ -367,51 +367,74 @@ func (m model) docsView() string {
 		Bold(true).
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(blue).
-		Padding(0, 2).
+		Padding(0, 3).
+		MarginBottom(1).
 		Render("󰈙 DOCUMENTATION: " + sel.name)
 
 	lines := strings.Split(m.docsText, "\n")
 	var docBody strings.Builder
+	
+	// Helper to parse bolding in any string
+	parseBold := func(txt string) string {
+		if !strings.Contains(txt, "**") {
+			return txt
+		}
+		parts := strings.Split(txt, "**")
+		var res strings.Builder
+		for i, p := range parts {
+			if i%2 == 1 {
+				res.WriteString(lipgloss.NewStyle().Foreground(teal).Bold(true).Render(p))
+			} else {
+				res.WriteString(p)
+			}
+		}
+		return res.String()
+	}
+
+	h1Skipped := false
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "# ") {
-			docBody.WriteString(lipgloss.NewStyle().Foreground(lavender).Bold(true).Underline(true).MarginTop(1).Render(strings.TrimPrefix(trimmed, "# ")) + "\n")
-		} else if strings.HasPrefix(trimmed, "## ") {
-			docBody.WriteString(lipgloss.NewStyle().Foreground(blue).Bold(true).MarginTop(1).Render(strings.TrimPrefix(trimmed, "## ")) + "\n")
+		if trimmed == "" {
+			docBody.WriteString("\n")
+			continue
+		}
+
+		// Skip the first H1 as it's already in the header box
+		if !h1Skipped && strings.HasPrefix(trimmed, "# ") {
+			h1Skipped = true
+			continue
+		}
+
+		if strings.HasPrefix(trimmed, "## ") {
+			title := strings.TrimPrefix(trimmed, "## ")
+			docBody.WriteString("\n" + lipgloss.NewStyle().Foreground(blue).Bold(true).Render(title) + "\n")
 		} else if strings.HasPrefix(trimmed, "> ") {
-			docBody.WriteString(lipgloss.NewStyle().Foreground(slate).Italic(true).PaddingLeft(2).Render(strings.TrimPrefix(trimmed, "> ")) + "\n")
-		} else if strings.HasPrefix(trimmed, "- ") {
-			parts := strings.SplitN(strings.TrimPrefix(trimmed, "- "), ":", 2)
-			if len(parts) == 2 {
-				key := lipgloss.NewStyle().Foreground(orange).Render(parts[0] + ":")
-				val := lipgloss.NewStyle().Foreground(white).Render(parts[1])
+			content := strings.TrimPrefix(trimmed, "> ")
+			docBody.WriteString(lipgloss.NewStyle().Foreground(slate).Italic(true).PaddingLeft(2).Render(content) + "\n")
+		} else if strings.HasPrefix(trimmed, "- ") || strings.HasPrefix(trimmed, "* ") {
+			content := strings.TrimPrefix(trimmed, "- ")
+			content = strings.TrimPrefix(content, "* ")
+			
+			if strings.Contains(content, ":") {
+				parts := strings.SplitN(content, ":", 2)
+				key := lipgloss.NewStyle().Foreground(orange).Bold(true).Render(parseBold(parts[0]) + ":")
+				val := lipgloss.NewStyle().Foreground(white).Render(parseBold(parts[1]))
 				docBody.WriteString("  • " + key + val + "\n")
 			} else {
-				docBody.WriteString("  • " + lipgloss.NewStyle().Foreground(white).Render(parts[0]) + "\n")
+				docBody.WriteString("  • " + parseBold(content) + "\n")
 			}
-		} else if strings.Contains(line, "**") {
-			// Basic bolding
-			parts := strings.Split(line, "**")
-			var rendered strings.Builder
-			for i, p := range parts {
-				if i%2 == 1 {
-					rendered.WriteString(lipgloss.NewStyle().Foreground(teal).Bold(true).Render(p))
-				} else {
-					rendered.WriteString(lipgloss.NewStyle().Foreground(white).Render(p))
-				}
-			}
-			docBody.WriteString(rendered.String() + "\n")
 		} else if strings.HasPrefix(trimmed, "---") {
-			docBody.WriteString(lipgloss.NewStyle().Foreground(slate).Render(strings.Repeat("─", 60)) + "\n")
+			docBody.WriteString(lipgloss.NewStyle().Foreground(slate).Render(strings.Repeat("─", 50)) + "\n")
 		} else {
-			docBody.WriteString(lipgloss.NewStyle().Foreground(white).Render(line) + "\n")
+			// Regular text with bolding support
+			docBody.WriteString(parseBold(line) + "\n")
 		}
 	}
 
 	scrollArea := lipgloss.NewStyle().
-		Padding(1, 4).
+		Padding(0, 4).
 		Width(m.width - 12).
-		Height(m.height - 12).
+		Height(m.height - 10).
 		Render(docBody.String())
 
 	footer := lipgloss.NewStyle().Foreground(slate).MarginTop(1).Render("B/ESC Back • Q Quit")
